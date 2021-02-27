@@ -1,11 +1,18 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include "replacementalgorithms.h"
 
-int pageSize = 0, memSize = 0;
+unsigned pageSize = 0,
+    memSize = 0,
+    readPages = 0,
+    writtenPages = 0,
+    pageFaults = 0;
 
-int bitsToIgnore() {
+char firstPrint = 1;
+
+int bitsToShift() {
     int s = 0, tmpPageSize = pageSize;
     while (tmpPageSize > 1) {
         tmpPageSize = tmpPageSize>>1;
@@ -19,10 +26,16 @@ void printSettings(char algorithm[], char file[]) {
     printf("Tecnica de reposicao: %s\n", algorithm);
     printf("Arquivo de entrada: %s\n", file);
     printf("Tamanho das páginas: %d KB\n", pageSize);
-    printf("Tamanho da memoria: %d KB\n", memSize);
+    printf("Tamanho da memoria: %d KB (%d páginas)\n", memSize, memSize/pageSize);
 }
 
-int validateArgs(int argsCount, char* args[], char algorithm[], FILE* logFile) {
+void printResults(pageTable* pt, clock_t startTime) {
+    printf("\nTabela final:\n");
+    printTable(pt);
+    printf("\nTempo de execução: %fs\n", (double)(clock() - startTime) / CLOCKS_PER_SEC);
+}
+
+int validateArgs(int argsCount, char* args[], char algorithm[], FILE** logFile) {
     if (argsCount < 5) {
         printf("Invalid args count.\n");
         return 0;
@@ -34,7 +47,7 @@ int validateArgs(int argsCount, char* args[], char algorithm[], FILE* logFile) {
         return 0;
     }
 
-    logFile = fopen(args[2], "r");
+    *logFile = fopen(args[2], "r");
     if (logFile == NULL) {
         printf("Invalid file.\n");
         return 0;
@@ -55,20 +68,51 @@ int validateArgs(int argsCount, char* args[], char algorithm[], FILE* logFile) {
     return 1;
 }
 
-void readAddresses(FILE* logFile) {
-    
+void readAddresses(FILE* logFile, pageTable* pt) {
+    unsigned addr;
+    char rw;
+    int addrShiftBits = bitsToShift();
+    int read;
+
+    while ((read = fscanf(logFile, "%x %c", &addr, &rw)) != -1) {
+        unsigned pageAddr = addr >> addrShiftBits;
+        // printf("%d %x %c\n", read, addr, rw); //DEBUG
+        memPage* page = readPage(pt, pageAddr);
+        if (page == NULL) {
+            pageFaults++;
+            writePage(pt, pageAddr, addr);
+            writtenPages++;
+            if (firstPrint && isTableFull(pt)) {
+                printf("\nTabela após primeira iteração completa:\n");
+                printTable(pt);
+                firstPrint = 0;
+            }
+        } else {
+            readPages++;
+        }
+    }
+
 }
 
 int main(int argsCount, char* args[]) {
     FILE* logFile = NULL;
     char algorithm[7];
-    if (validateArgs(argsCount, args, algorithm, logFile) != 1) {
+
+    if (validateArgs(argsCount, args, algorithm, &logFile) != 1) {
         return 0;
     }
 
+    clock_t startTime = clock();
     printSettings(algorithm, args[2]);
 
-    readAddresses(logFile);
+    pageTable* pt = malloc(sizeof(pageTable) + sizeof(memPage) * (memSize/pageSize));
+    pt->tableSize = memSize/pageSize, pt->pageSize = pageSize, pt->tableOccupation = 0;
 
+    readAddresses(logFile, pt);
+    
+    printResults(pt, startTime);
+
+    fclose(logFile);
+    free(pt);
     return 0;
 }
