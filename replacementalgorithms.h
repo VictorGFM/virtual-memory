@@ -5,24 +5,35 @@
         unsigned logicAddr;
         unsigned physicAddr;
         unsigned lastUsed;
+        char referenceBit;
     };
     typedef struct memPage memPage;
 
     struct pageTable {
         unsigned tableSize;
         unsigned pageSize;
-        unsigned tableOccupation;
+        unsigned lastPageIndex;
+        unsigned isFirstIteration;
         memPage pages[];
     };
     typedef struct pageTable pageTable;
 
-    extern void replaceByFIFO(pageTable* pt, unsigned logicAddr, unsigned physicAddr);
-    extern void replaceByLRU(); //wip
-    extern void replaceBySecondChance(); //wip
-    extern void replaceByCustom(); //wip
-    extern int isTableFull(pageTable* pt);
-    extern memPage* readPage(pageTable* pt, unsigned pageAddr);
-    extern void writePage(pageTable* pt, unsigned logicAddr, unsigned physicAddr);
-    extern void printTable(pageTable* pt);
+    #define LRU "lru"
+    #define FIFO "fifo"
+    #define SECONDCHANCE "2a"
+    #define CUSTOM "custom"
+
+    void writePageLRU(pageTable* pt, unsigned logicAddr, unsigned physicAddr);
+    void writePageFIFO(pageTable* pt, unsigned logicAddr, unsigned physicAddr);
+    void writePageSECONDCHANCE(pageTable* pt, unsigned logicAddr, unsigned physicAddr);
+    void writePageCUSTOM(pageTable* pt, unsigned logicAddr, unsigned physicAddr);
+
+    extern int IsAlgorithmValid(char algorithm[]);
+    extern int IsTableFull(pageTable* pt);
+    extern int IsFirstIteration(pageTable* pt);
+    extern pageTable* NewPageTable(unsigned memSize, unsigned pageSize);
+    extern memPage* GetPage(pageTable* pt, unsigned pageAddr);
+    extern void UpdatePageByAlgorithm(pageTable* pt, unsigned logicAddr, unsigned addr, char algorithm[]);
+    extern void PrintTable(pageTable* pt, char algorithm[]);
 
 #endif

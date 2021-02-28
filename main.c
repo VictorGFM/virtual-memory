@@ -8,9 +8,9 @@ unsigned pageSize = 0,
     memSize = 0,
     readPages = 0,
     writtenPages = 0,
-    pageFaults = 0;
-
-char firstPrint = 1;
+    pageFaults = 0,
+    dirtyPages = 0,
+    accessCount = 0;
 
 int bitsToShift() {
     int s = 0, tmpPageSize = pageSize;
@@ -21,18 +21,19 @@ int bitsToShift() {
     return s;
 }
 
-void printSettings(char algorithm[], char file[]) {
-    printf("Executando o simulador...\n");
-    printf("Tecnica de reposicao: %s\n", algorithm);
+void printResults(pageTable* pt, clock_t startTime, clock_t endTime, char algorithm[], char file[]) {
+    printf("\nTabela final:\n");
+    PrintTable(pt, algorithm);
+    printf("\nTecnica de reposicao: %s\n", algorithm);
     printf("Arquivo de entrada: %s\n", file);
     printf("Tamanho das páginas: %d KB\n", pageSize);
-    printf("Tamanho da memoria: %d KB (%d páginas)\n", memSize, memSize/pageSize);
-}
-
-void printResults(pageTable* pt, clock_t startTime) {
-    printf("\nTabela final:\n");
-    printTable(pt);
-    printf("\nTempo de execução: %fs\n", (double)(clock() - startTime) / CLOCKS_PER_SEC);
+    printf("Tamanho da memoria: %d KB (%d páginas)\n\n", memSize, memSize/pageSize);
+    printf("Número de acessos: %d\n", accessCount);
+    printf("Páginas lidas da memória (page faults): %d\n", pageFaults);
+    printf("Páginas lidas da tabela: %d\n", readPages);
+    printf("Páginas escritas: %d\n", writtenPages);
+    printf("Páginas sujas: %d\n", dirtyPages);
+    printf("\nTempo de execução: %fs\n", (double)(endTime - startTime) / CLOCKS_PER_SEC);
 }
 
 int validateArgs(int argsCount, char* args[], char algorithm[], FILE** logFile) {
@@ -42,7 +43,7 @@ int validateArgs(int argsCount, char* args[], char algorithm[], FILE** logFile) 
     }
 
     strcpy(algorithm, args[1]);
-    if (strcmp(algorithm, "lru") != 0 && strcmp(algorithm, "2a") != 0 && strcmp(algorithm, "fifo") != 0 && strcmp(algorithm, "custom") != 0) {
+    if (!IsAlgorithmValid(algorithm)) {
         printf("Invalid algorithm.\n");
         return 0;
     }
@@ -68,24 +69,29 @@ int validateArgs(int argsCount, char* args[], char algorithm[], FILE** logFile) 
     return 1;
 }
 
-void readAddresses(FILE* logFile, pageTable* pt) {
+void readAddresses(FILE* logFile, pageTable* pt, char algorithm[]) {
     unsigned addr;
     char rw;
     int addrShiftBits = bitsToShift();
     int read;
 
     while ((read = fscanf(logFile, "%x %c", &addr, &rw)) != -1) {
+        accessCount++;
         unsigned pageAddr = addr >> addrShiftBits;
         // printf("%d %x %c\n", read, addr, rw); //DEBUG
-        memPage* page = readPage(pt, pageAddr);
+        memPage* page = GetPage(pt, pageAddr);
         if (page == NULL) {
             pageFaults++;
-            writePage(pt, pageAddr, addr);
-            writtenPages++;
-            if (firstPrint && isTableFull(pt)) {
+            if (rw == 'W') {
+                writtenPages++;
+                if (!IsFirstIteration(pt)) {
+                    dirtyPages++;
+                }
+            }
+            UpdatePageByAlgorithm(pt, pageAddr, addr, algorithm);
+            if (IsFirstIteration(pt) && IsTableFull(pt)) {
                 printf("\nTabela após primeira iteração completa:\n");
-                printTable(pt);
-                firstPrint = 0;
+                PrintTable(pt, algorithm);
             }
         } else {
             readPages++;
@@ -103,14 +109,12 @@ int main(int argsCount, char* args[]) {
     }
 
     clock_t startTime = clock();
-    printSettings(algorithm, args[2]);
 
-    pageTable* pt = malloc(sizeof(pageTable) + sizeof(memPage) * (memSize/pageSize));
-    pt->tableSize = memSize/pageSize, pt->pageSize = pageSize, pt->tableOccupation = 0;
+    pageTable* pt = NewPageTable(memSize, pageSize);
 
-    readAddresses(logFile, pt);
+    readAddresses(logFile, pt, algorithm);
     
-    printResults(pt, startTime);
+    printResults(pt, startTime, clock(), algorithm, args[2]);
 
     fclose(logFile);
     free(pt);
