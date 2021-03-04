@@ -5,7 +5,7 @@
 
 extern int isDebugMode;
 
-void writePageFIFO(pageTable* pt, unsigned logicAddr, unsigned physicAddr, statistics* stats) {
+void writePageFIFO(PageTable* pt, unsigned logicAddr, unsigned physicAddr, Statistics* stats) {
     if (pt->lastPageIndex == pt->tableSize) {
         pt->lastPageIndex = 0;
         pt->isFirstIteration = 0;
@@ -26,7 +26,7 @@ void writePageFIFO(pageTable* pt, unsigned logicAddr, unsigned physicAddr, stati
     pt->lastPageIndex++;
 }
 
-void writePageLRU(pageTable* pt, unsigned logicAddr, unsigned physicAddr,  statistics* stats) {
+void writePageLRU(PageTable* pt, unsigned logicAddr, unsigned physicAddr,  Statistics* stats) {
     if(pt->lastPageIndex == pt->tableSize) {
         pt->isFirstIteration = 0;
         unsigned leastRecentlyUsedTime = UINT_MAX, leastRecentlyUsedIndex = 0;
@@ -57,8 +57,10 @@ void writePageLRU(pageTable* pt, unsigned logicAddr, unsigned physicAddr,  stati
     }
 }
 
-void writePageSECONDCHANCE(pageTable* pt, unsigned logicAddr, unsigned physicAddr) {
-    if (pt->lastPageIndex >= pt->tableSize) {
+void writePageSECONDCHANCE(PageTable* pt, unsigned logicAddr, unsigned physicAddr,
+                           Statistics* stats) {
+       
+    if (pt->lastPageIndex == pt->tableSize) {
         pt->lastPageIndex = 0;
         pt->isFirstIteration = 0;
     } else if (pt->isFirstIteration) {
@@ -77,13 +79,13 @@ void writePageSECONDCHANCE(pageTable* pt, unsigned logicAddr, unsigned physicAdd
         }
 
         if (pt->pages[pageIndex].referenceBit == 0) {
-            pt->pages[pt->lastPageIndex].logicAddr = logicAddr;
-            pt->pages[pt->lastPageIndex].physicAddr = physicAddr;
+            pt->pages[pageIndex].logicAddr = logicAddr;
+            pt->pages[pageIndex].physicAddr = physicAddr;
             break;
         }
 
         if (pt->pages[pageIndex].referenceBit == 1) {
-            pt->pages[pt->lastPageIndex].referenceBit = 0;
+            pt->pages[pageIndex].referenceBit = 0;
         }
     }
 
@@ -94,68 +96,64 @@ int isAlgorithmValid(char algorithm[]) {
     return strcmp(algorithm, LRU) == 0 || strcmp(algorithm, SECONDCHANCE) == 0 || strcmp(algorithm, FIFO) == 0 || strcmp(algorithm, CUSTOM) == 0;
 }
 
-int isFirstIteration(pageTable* pt) {
+int isFirstIteration(PageTable* pt) {
     return pt->isFirstIteration;
 }
 
-statistics* newStatistics() {
-    statistics* stats = malloc(sizeof(statistics));
+Statistics* newStatistics() {
+    Statistics* stats = malloc(sizeof(Statistics));
     stats->pageSize = 0, stats->memSize = 0, stats->readPages = 0, stats->writtenPages = 0, 
     stats->pageFaults = 0, stats->dirtyPagesWrittenDisk = 0, stats->accessCount = 0;
     return stats;
 } 
 
-pageTable* newPageTable(unsigned memSize, unsigned pageSize) {
-    pageTable* pt = malloc(sizeof(pageTable) + sizeof(memPage) * (memSize/pageSize));
+PageTable* newPageTable(unsigned memSize, unsigned pageSize) {
+    PageTable* pt = malloc(sizeof(PageTable) + sizeof(MemPage) * (memSize/pageSize));
     pt->tableSize = memSize/pageSize, pt->pageSize = pageSize, pt->lastPageIndex = 0, 
     pt->isFirstIteration = 1;
     return pt;
 }
 
-memPage* getPage(pageTable* pt, unsigned pageAddr) {
+MemPage* getPage(PageTable* pt, unsigned pageAddr) {
     for (int i = 0; i < pt->tableSize; i++) {
         if (pt->pages[i].logicAddr == pageAddr) {
-            pt->pages[i].timeLastAccess = 0;
-            pt->pages[i].referenceBit = 1;
             return &pt->pages[i];
         }
     }
-    return 0;
+    return NULL;
 }
 
-void updatePageByAlgorithm(pageTable* pt, memPage* page, unsigned logicAddr, 
-                           unsigned addr,  statistics* stats) {
+void updatePageByAlgorithm(PageTable* pt, MemPage* page, unsigned logicAddr, 
+                           unsigned addr,  Statistics* stats) {
     unsigned isPageFault = (page == NULL);
-    if (strcmp(stats->algorithm, FIFO) == 0) {
+    if(strcmp(stats->algorithm, FIFO) == 0) {
         if(isPageFault) {
             stats->pageFaults++;
             if(isDebugMode) printf(":::Page Fault (%d)\n", stats->pageFaults);
             writePageFIFO(pt, logicAddr, addr, stats);
-            stats->writtenPages++; //TODO: Confirmar se page fault contabiliza como um processo de escrita
         }
-        return;
-    }
-    if (strcmp(stats->algorithm, LRU) == 0) {
+    } else if(strcmp(stats->algorithm, LRU) == 0) {
         if(isPageFault) {
             stats->pageFaults++;
             if(isDebugMode) printf(":::Page Fault (%d)\n", stats->pageFaults);
             writePageLRU(pt, logicAddr, addr, stats);
-            stats->writtenPages++; //TODO: Confirmar se page fault contabiliza como um processo de escrita
         } else {
             page->timeLastAccess=clock();
         }
-        return;
-    }
-    if (strcmp(stats->algorithm, SECONDCHANCE) == 0) {
-        writePageSECONDCHANCE(pt, logicAddr, addr);
-        return;
-    }
-    if (strcmp(stats->algorithm, CUSTOM) == 0) {
+    } else if(strcmp(stats->algorithm, SECONDCHANCE) == 0) {
+        if(isPageFault) {
+            stats->pageFaults++;
+            if(isDebugMode) printf(":::Page Fault (%d)\n", stats->pageFaults);
+            writePageSECONDCHANCE(pt, logicAddr, addr, stats);
+        } else {
+            page->referenceBit=1;
+        }
+    } else if (strcmp(stats->algorithm, CUSTOM) == 0) {
         writePageLRU(pt, logicAddr, addr, stats); //TODO: create Custom algorithm
     }
 }
 
-void printTable(pageTable* pt, char algorithm[]) {
+void printTable(PageTable* pt, char algorithm[]) {
     for (int i = 0; i < pt->tableSize; i++) {
         printf("Page %x - Address %x - Dirty Page %d", pt->pages[i].logicAddr, 
                pt->pages[i].physicAddr, pt->pages[i].dirtyPage);

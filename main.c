@@ -22,22 +22,24 @@ int bitsToShift(unsigned pageSize) {
     return s;
 }
 
-void printResults(pageTable* pt, statistics* stats, clock_t startTime, clock_t endTime, char file[]) {
-    printf("\nTecnica de reposicao: %s\n", stats->algorithm);
+void printResults(PageTable* pt, Statistics* stats, clock_t startTime, clock_t endTime, char file[]) {
+    printf("\nTabela final:\n");
+    printTable(pt, stats->algorithm);
+    
+    printf("\nConfiguracao utilizada:\n");
+    printf("Tecnica de reposicao: %s\n", stats->algorithm);
     printf("Arquivo de entrada: %s\n", file);
     printf("Tamanho das páginas: %d KB\n", stats->pageSize);
     printf("Tamanho da memoria: %d KB (%d páginas)\n\n", stats->memSize, stats->memSize/stats->pageSize);
-    printf("Número de acessos: %d\n", stats->accessCount);
-    printf("Páginas lidas da memória (page faults): %d\n", stats->pageFaults);
-    printf("Páginas lidas da tabela: %d\n", stats->readPages);
-    printf("Páginas escritas: %d\n", stats->writtenPages);
-    printf("Páginas sujas escritas no disco: %d\n", stats->dirtyPagesWrittenDisk);
-    printf("\nTempo de execução: %fs\n", (double)(endTime - startTime) / CLOCKS_PER_SEC);
-    printf("\nTabela final:\n");
-    printTable(pt, stats->algorithm);
+    
+    printf("Numero de acessos a memoria: %d\n", stats->accessCount);
+    printf("Numero de page faults: %d\n", stats->pageFaults);
+    printf("Paginas sujas escritas no disco: %d\n\n", stats->dirtyPagesWrittenDisk);
+    
+    printf("Tempo de execução: %fs\n", (double)(endTime - startTime) / CLOCKS_PER_SEC);
 }
 
-int validateArgs(int argsCount, char* args[], statistics* stats, FILE** logFile, 
+int validateArgs(int argsCount, char* args[], Statistics* stats, FILE** logFile, 
                  int* isDebugMode) {
     if (argsCount < 5) {
         printf("Invalid args count.\n");
@@ -69,7 +71,7 @@ int validateArgs(int argsCount, char* args[], statistics* stats, FILE** logFile,
     }
 
     if(args[5] != NULL) {
-        if(strcmp(args[5],DEBUG) == 0) {
+        if(strcmp(args[5], DEBUG) == 0) {
             *isDebugMode = 1;
         } else {
             printf("Invalid debug parameter.\n");
@@ -80,7 +82,7 @@ int validateArgs(int argsCount, char* args[], statistics* stats, FILE** logFile,
     return 0;
 }
 
-void readAddresses(FILE* logFile, pageTable* pt, statistics* stats) {
+void readAddresses(FILE* logFile, PageTable* pt, Statistics* stats) {
     unsigned addr;
     char rw;
     int addrShiftBits = bitsToShift(stats->pageSize);
@@ -102,7 +104,7 @@ void readAddresses(FILE* logFile, pageTable* pt, statistics* stats) {
             printf(":::Page Address: %x\n", pageAddr);
         }
 
-        memPage* page = getPage(pt, pageAddr);
+        MemPage* page = getPage(pt, pageAddr);
 
         updatePageByAlgorithm(pt, page, pageAddr, addr, stats);
         
@@ -129,7 +131,7 @@ void readAddresses(FILE* logFile, pageTable* pt, statistics* stats) {
 int main(int argsCount, char* args[]) {
     FILE* logFile = NULL;
     
-    statistics* stats = newStatistics();
+    Statistics* stats = newStatistics();
 
     //TODO: check validation
     if (validateArgs(argsCount, args, stats, &logFile, &isDebugMode) != 0) {
@@ -141,7 +143,7 @@ int main(int argsCount, char* args[]) {
 
     clock_t startTime = clock();
 
-    pageTable* pt = newPageTable(stats->memSize, stats->pageSize);
+    PageTable* pt = newPageTable(stats->memSize, stats->pageSize);
 
     if(isDebugMode) {
         printf(":::Initialized Page Table:\n");

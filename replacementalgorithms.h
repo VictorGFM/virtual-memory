@@ -2,9 +2,9 @@
 #define REPLACEMENTALGORITHMS_H
 #include <time.h>
 #include <limits.h>
-#include "utils.h"
+#include "constants.h"
 
-struct statistics {
+struct Statistics {
     unsigned pageSize;
     unsigned memSize;
     unsigned readPages;
@@ -14,38 +14,38 @@ struct statistics {
     unsigned accessCount;
     char algorithm[7];
 }; 
-typedef struct statistics statistics;
+typedef struct Statistics Statistics;
 
-struct memPage { //TODO: confirmar formato e o que deve ser armazenado na tabela
+struct MemPage { //TODO: confirmar formato e o que deve ser armazenado na tabela
     unsigned logicAddr;
     unsigned physicAddr;
     unsigned dirtyPage;
     unsigned timeLastAccess;
     char referenceBit;
 };
-typedef struct memPage memPage;
+typedef struct MemPage MemPage;
 
-struct pageTable {
+struct PageTable {
     unsigned tableSize;
     unsigned pageSize;
     unsigned lastPageIndex;
     unsigned isFirstIteration;
-    memPage pages[];
+    MemPage pages[];
 };
-typedef struct pageTable pageTable;
+typedef struct PageTable PageTable;
 
-void writePageFIFO(pageTable* pt, unsigned logicAddr, unsigned physicAddr, statistics* stats);
-void writePageLRU(pageTable* pt, unsigned logicAddr, unsigned physicAddr, statistics* stats);
-void writePageSECONDCHANCE(pageTable* pt, unsigned logicAddr, unsigned physicAddr);
-void writePageCUSTOM(pageTable* pt, unsigned logicAddr, unsigned physicAddr);
+void writePageFIFO(PageTable* pt, unsigned logicAddr, unsigned physicAddr, Statistics* stats);
+void writePageLRU(PageTable* pt, unsigned logicAddr, unsigned physicAddr, Statistics* stats);
+void writePageSECONDCHANCE(PageTable* pt, unsigned logicAddr, unsigned physicAddr, Statistics* stats);
+void writePageCUSTOM(PageTable* pt, unsigned logicAddr, unsigned physicAddr);
 
 extern int isAlgorithmValid(char algorithm[]);
-extern int isFirstIteration(pageTable* pt);
-extern statistics* newStatistics();
-extern pageTable* newPageTable(unsigned memSize, unsigned pageSize);
-extern memPage* getPage(pageTable* pt, unsigned pageAddr);
-extern void updatePageByAlgorithm(pageTable* pt, memPage* page, unsigned logicAddr, 
-                                  unsigned addr, statistics* stats);
-extern void printTable(pageTable* pt, char algorithm[]);
+extern int isFirstIteration(PageTable* pt);
+extern Statistics* newStatistics();
+extern PageTable* newPageTable(unsigned memSize, unsigned pageSize);
+extern MemPage* getPage(PageTable* pt, unsigned pageAddr);
+extern void updatePageByAlgorithm(PageTable* pt, MemPage* page, unsigned logicAddr, 
+                                  unsigned addr, Statistics* stats);
+extern void printTable(PageTable* pt, char algorithm[]);
 
 #endif
