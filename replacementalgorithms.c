@@ -115,7 +115,7 @@ void writePageLRU(PageTable* pt, PhysMem* physMem, unsigned pageAddress, Statist
         physMem->frames[physMem->lastFrameAddress].pageAddress = pageAddress;
         pt->pages[pageAddress].physicAddr = physMem->lastFrameAddress;
         pt->pages[pageAddress].validationBit = VALID;
-        pt->pages[pageAddress].timeLastAccess = clock();
+        pt->pages[pageAddress].timeLastAccess = stats->accessCount;
 
         physMem->lastFrameAddress++;
         return;
@@ -132,6 +132,7 @@ void writePageLRU(PageTable* pt, PhysMem* physMem, unsigned pageAddress, Statist
     unsigned deallocatedPageAddress = physMem->frames[leastRecentlyUsedIndex].pageAddress;
     if(isDebugMode) printf(":::Deallocated Page Address: %x\n", deallocatedPageAddress);
     pt->pages[deallocatedPageAddress].validationBit = INVALID;
+    pt->pages[deallocatedPageAddress].timeLastAccess = 0;
 
     if(pt->pages[deallocatedPageAddress].dirtyPage) {
         stats->dirtyPagesWrittenDisk++;
@@ -145,7 +146,7 @@ void writePageLRU(PageTable* pt, PhysMem* physMem, unsigned pageAddress, Statist
     physMem->frames[leastRecentlyUsedIndex].pageAddress = pageAddress;
     pt->pages[pageAddress].physicAddr = leastRecentlyUsedIndex;
     pt->pages[pageAddress].validationBit = VALID;
-    pt->pages[pageAddress].timeLastAccess = clock();
+    pt->pages[pageAddress].timeLastAccess = stats->accessCount;
 }
 
 void writePageSECONDCHANCE(PageTable* pt, PhysMem* physMem, unsigned pageAddress, Statistics* stats) {
@@ -199,6 +200,11 @@ void writePageSECONDCHANCE(PageTable* pt, PhysMem* physMem, unsigned pageAddress
     }
 }
 
+void writePageCUSTOM(PageTable* pt, PhysMem* physMem, unsigned pageAddress, Statistics* stats) {
+
+}
+
+
 void updatePageByAlgorithm(PageTable* pageTable, unsigned pageAddress, PhysMem* physMem,
                            Statistics* stats) {
 
@@ -219,7 +225,7 @@ void updatePageByAlgorithm(PageTable* pageTable, unsigned pageAddress, PhysMem* 
             }
             writePageLRU(pageTable, physMem, pageAddress, stats);
         } else {
-            pageTable->pages[pageAddress].timeLastAccess = clock();
+            pageTable->pages[pageAddress].timeLastAccess = stats->accessCount;
         }
     } else if(strcmp(stats->algorithm, SECONDCHANCE) == 0) {
         if(isPageFault) {
@@ -231,7 +237,7 @@ void updatePageByAlgorithm(PageTable* pageTable, unsigned pageAddress, PhysMem* 
         } else {
             pageTable->pages[pageAddress].referenceBit = 1;
         }
-    } /* else if (strcmp(stats->algorithm, CUSTOM) == 0) {
-        writePageLRU(pageTable, logicAddr, addr, stats); //TODO: create Custom algorithm
-    } */
+    } else if (strcmp(stats->algorithm, CUSTOM) == 0) {
+        writePageCUSTOM(pageTable, physMem, pageAddress, stats); //TODO: create Custom algorithm
+    }
 }
