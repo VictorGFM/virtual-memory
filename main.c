@@ -5,20 +5,23 @@
 
 int isDebugMode = 0;
 
-int validateArgs(int argsCount, char* args[], Statistics* stats, FILE** logFile, 
-                 int* isDebugMode);
+int validateArgs(int argsCount, char* args[], Statistics* stats, FILE** logFile);
+
 int getOffsetSize(unsigned pageSize);
-void accessAddresses(FILE* logFile, unsigned offsetSize, PageTable* pt, PhysMem* physMem,
+
+void accessAddresses(FILE* logFile, unsigned offsetSize, PageTable* pageTable, PhysMem* physMem,
                      Statistics* stats);
+
 int validateReadWrite(char rw);
-void printResults(PageTable* pt, Statistics* stats, clock_t startTime, clock_t endTime, 
+
+void printResults(PageTable* pageTable, Statistics* stats, clock_t startTime, clock_t endTime,
                   char file[]);
 
 int main(int argsCount, char* args[]) {
     FILE* logFile = NULL;
     Statistics* stats = newStatistics();
 
-    if (validateArgs(argsCount, args, stats, &logFile, &isDebugMode) != 0) {
+    if (validateArgs(argsCount, args, stats, &logFile) != 0) {
         printf("Error while validating arguments. Invalid Argument.\n");
         return 0;
     }
@@ -27,30 +30,29 @@ int main(int argsCount, char* args[]) {
 
     unsigned offsetSize = getOffsetSize(stats->pageSize*K);
     PhysMem* physMem = newPhysicalMemory(stats->memSize, stats->pageSize);
-    PageTable* pt = newPageTable(offsetSize);
+    PageTable* pageTable = newPageTable(offsetSize);
     
     if(isDebugMode) {
         printf("Offset Size (s): %d\n", offsetSize);
     }
 
     printf("Tabela inicial:\n");
-    printTable(pt, stats->algorithm, 1);
+    printTable(pageTable, stats->algorithm, 1);
 
     clock_t startTime = clock();
     
-    accessAddresses(logFile, offsetSize, pt, physMem, stats);
+    accessAddresses(logFile, offsetSize, pageTable, physMem, stats);
     
     clock_t endTime = clock();
 
-    printResults(pt, stats, startTime, endTime, args[2]);
+    printResults(pageTable, stats, startTime, endTime, args[2]);
 
     free(physMem);
-    free(pt);
+    free(pageTable);
     return 0;
 }
 
-int validateArgs(int argsCount, char* args[], Statistics* stats, FILE** logFile, 
-                 int* isDebugMode) {
+int validateArgs(int argsCount, char* args[], Statistics* stats, FILE** logFile) {
     if (argsCount < 5) {
         printf("Invalid args count.\n");
         return 1;
@@ -82,7 +84,7 @@ int validateArgs(int argsCount, char* args[], Statistics* stats, FILE** logFile,
 
     if(args[5] != NULL) {
         if(strcmp(args[5], DEBUG) == 0) {
-            *isDebugMode = 1;
+            isDebugMode = 1;
         } else {
             printf("Invalid debug parameter. (debug)\n");
             return 1;
@@ -101,14 +103,15 @@ int getOffsetSize(unsigned pageSize) {
     return s;
 }
 
-void accessAddresses(FILE* logFile, unsigned offsetSize, PageTable* pt, PhysMem* physMem,
+void accessAddresses(FILE* logFile, unsigned offsetSize, PageTable* pageTable, PhysMem* physMem,
                      Statistics* stats) {
     unsigned addr;
     char rw;
+
     while (fscanf(logFile, "%x %c", &addr, &rw) != EOF) {
         if(validateReadWrite(rw) != 0) {
             printf("Error while reading file. Parameter W/R not provided.\n");
-            exit(0);
+            exit(0); // continue?
         }
 
         stats->accessCount++;
@@ -119,19 +122,19 @@ void accessAddresses(FILE* logFile, unsigned offsetSize, PageTable* pt, PhysMem*
             printf(":::%x %c\n", addr, rw); 
             printf(":::Page Address: %x\n", pageAddress);
         }
-        
-        updatePageByAlgorithm(pt, pageAddress, physMem, stats);
+
+        updatePageByAlgorithm(pageTable, pageAddress, physMem, stats);
         
         if(rw == READ) {
             stats->readPages++;
         } else if(rw == WRITE) {
-            pt->pages[pageAddress].dirtyPage = 1;
+            pageTable->pages[pageAddress].dirtyPage = 1;
             stats->writtenPages++;
         }
 
         if(isDebugMode) {
             printf(":::Page Table:\n");
-            printTable(pt, stats->algorithm, 1);
+            printTable(pageTable, stats->algorithm, 1);
         }
     }
 
@@ -142,10 +145,10 @@ int validateReadWrite(char rw) {
     return (rw != READ && rw != WRITE);
 }
 
-void printResults(PageTable* pt, Statistics* stats, clock_t startTime, clock_t endTime, 
+void printResults(PageTable* pageTable, Statistics* stats, clock_t startTime, clock_t endTime,
                   char file[]) {
     printf("\nTabela final:\n");
-    printTable(pt, stats->algorithm, 1);
+    printTable(pageTable, stats->algorithm, 1);
     
     printf("\nConfiguração utilizada:\n");
     printf("Técnica de reposição: %s\n", stats->algorithm);

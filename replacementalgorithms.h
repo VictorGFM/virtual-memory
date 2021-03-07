@@ -45,9 +45,9 @@ struct PhysMem {
 };
 typedef struct PhysMem PhysMem;
 
-void writePageFIFO(PageTable* pt, unsigned pageAddress, PhysMem* physMem, Statistics* stats);
-void writePageLRU(PageTable* pt, unsigned logicAddr, unsigned physicAddr, Statistics* stats);
-void writePageSECONDCHANCE(PageTable* pt, unsigned logicAddr, unsigned physicAddr, Statistics* stats);
+void writePageFIFO(PageTable* pt, PhysMem* physMem, unsigned pageAddress, Statistics* stats);
+void writePageLRU(PageTable* pt, PhysMem* physMem, unsigned pageAddress, Statistics* stats);
+void writePageSECONDCHANCE(PageTable* pt, PhysMem* physMem, unsigned pageAddress, Statistics* stats);
 void writePageCUSTOM(PageTable* pt, unsigned logicAddr, unsigned physicAddr);
 
 extern Statistics* newStatistics();
