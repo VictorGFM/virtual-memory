@@ -2,6 +2,7 @@
 #define REPLACEMENTALGORITHMS_H
 #include <time.h>
 #include <limits.h>
+#include <math.h>
 #include "constants.h"
 
 struct Statistics {
@@ -16,36 +17,45 @@ struct Statistics {
 }; 
 typedef struct Statistics Statistics;
 
-struct MemPage { //TODO: confirmar formato e o que deve ser armazenado na tabela
-    unsigned logicAddr;
+struct Page {
     unsigned physicAddr;
+    char validationBit;
     unsigned dirtyPage;
     unsigned timeLastAccess;
     char referenceBit;
 };
-typedef struct MemPage MemPage;
+typedef struct Page Page;
 
 struct PageTable {
-    unsigned tableSize;
-    unsigned pageSize;
-    unsigned lastPageIndex;
-    unsigned isFirstIteration;
-    MemPage pages[];
+    unsigned numberPages;
+    Page pages[];
 };
 typedef struct PageTable PageTable;
 
-void writePageFIFO(PageTable* pt, unsigned logicAddr, unsigned physicAddr, Statistics* stats);
+struct Frame {
+    int isAllocated;
+    unsigned pageAddress;
+};
+typedef struct Frame Frame;
+
+struct PhysMem {
+    unsigned numberFrames;
+    unsigned lastFrameAddress;
+    Frame frames[];
+};
+typedef struct PhysMem PhysMem;
+
+void writePageFIFO(PageTable* pt, unsigned pageAddress, PhysMem* physMem, Statistics* stats);
 void writePageLRU(PageTable* pt, unsigned logicAddr, unsigned physicAddr, Statistics* stats);
 void writePageSECONDCHANCE(PageTable* pt, unsigned logicAddr, unsigned physicAddr, Statistics* stats);
 void writePageCUSTOM(PageTable* pt, unsigned logicAddr, unsigned physicAddr);
 
 extern int isAlgorithmValid(char algorithm[]);
-extern int isFirstIteration(PageTable* pt);
 extern Statistics* newStatistics();
-extern PageTable* newPageTable(unsigned memSize, unsigned pageSize);
-extern MemPage* getPage(PageTable* pt, unsigned pageAddr);
-extern void updatePageByAlgorithm(PageTable* pt, MemPage* page, unsigned logicAddr, 
-                                  unsigned addr, Statistics* stats);
-extern void printTable(PageTable* pt, char algorithm[]);
+extern PhysMem* newPhysicalMemory(unsigned memSize, unsigned pageSize);
+extern PageTable* newPageTable(unsigned offsetSize);
+extern void updatePageByAlgorithm(PageTable* pt, unsigned pageAddress, PhysMem* physMem, 
+                                  Statistics* stats);
+extern void printTable(PageTable* pt, char algorithm[], int printOnlyValids);
 
 #endif

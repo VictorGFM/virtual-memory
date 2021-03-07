@@ -5,32 +5,39 @@
 
 extern int isDebugMode;
 
-void writePageFIFO(PageTable* pt, unsigned logicAddr, unsigned physicAddr, Statistics* stats) {
-    if (pt->lastPageIndex == pt->tableSize) {
-        pt->lastPageIndex = 0;
-        pt->isFirstIteration = 0;
+void writePageFIFO(PageTable* pt, unsigned pageAddress, PhysMem* physMem, Statistics* stats) {
+    if (physMem->lastFrameAddress == physMem->numberFrames) {
+        physMem->lastFrameAddress = 0;
     }
     
-    if(pt->pages[pt->lastPageIndex].dirtyPage) {
-        stats->dirtyPagesWrittenDisk++;
-        if(isDebugMode) printf(":::Dirty Page Written On Disk (%d): %x\n", 
-                                stats->dirtyPagesWrittenDisk, 
-                                pt->pages[pt->lastPageIndex].logicAddr);
+    if(physMem->frames[physMem->lastFrameAddress].isAllocated == FREE) {
+        physMem->frames[physMem->lastFrameAddress].isAllocated = ALLOCATED;
+        physMem->frames[physMem->lastFrameAddress].pageAddress = pageAddress;
     } else {
-        pt->pages[pt->lastPageIndex].dirtyPage = 1;
+        unsigned deallocatedPageAddress = physMem->frames[physMem->lastFrameAddress].pageAddress;
+        pt->pages[deallocatedPageAddress].validationBit = INVALID;
+        if(pt->pages[deallocatedPageAddress].dirtyPage) {
+            stats->dirtyPagesWrittenDisk++;
+            if(isDebugMode) {
+                printf(":::Dirty Page Written On Disk (%d): %x\n", 
+                        stats->dirtyPagesWrittenDisk, deallocatedPageAddress);
+            }
+        }
+        pt->pages[deallocatedPageAddress].dirtyPage = 0;
+        physMem->frames[physMem->lastFrameAddress].pageAddress = pageAddress;
     }
 
-    pt->pages[pt->lastPageIndex].logicAddr = logicAddr;
-    pt->pages[pt->lastPageIndex].physicAddr = physicAddr;
+    pt->pages[pageAddress].physicAddr = physMem->lastFrameAddress;
+    pt->pages[pageAddress].validationBit = VALID;
 
-    pt->lastPageIndex++;
+    physMem->lastFrameAddress++;
 }
 
 void writePageLRU(PageTable* pt, unsigned logicAddr, unsigned physicAddr,  Statistics* stats) {
-    if(pt->lastPageIndex == pt->tableSize) {
+    /* if(pt->lastPageIndex == pt->numberPages) {
         pt->isFirstIteration = 0;
         unsigned leastRecentlyUsedTime = UINT_MAX, leastRecentlyUsedIndex = 0;
-        for (int i = 0; i < pt->tableSize; i++) {
+        for (int i = 0; i < pt->numberPages; i++) {
             if (pt->pages[i].timeLastAccess < leastRecentlyUsedTime) {
                 leastRecentlyUsedTime = pt->pages[i].timeLastAccess;
                 leastRecentlyUsedIndex = i;
@@ -54,13 +61,13 @@ void writePageLRU(PageTable* pt, unsigned logicAddr, unsigned physicAddr,  Stati
         pt->pages[pt->lastPageIndex].timeLastAccess = clock();
 
         pt->lastPageIndex++;
-    }
+    } */
 }
 
 void writePageSECONDCHANCE(PageTable* pt, unsigned logicAddr, unsigned physicAddr,
                            Statistics* stats) {
        
-    if (pt->lastPageIndex == pt->tableSize) {
+    /* if (pt->lastPageIndex == pt->numberPages) {
         pt->lastPageIndex = 0;
         pt->isFirstIteration = 0;
     } else if (pt->isFirstIteration) {
@@ -73,8 +80,8 @@ void writePageSECONDCHANCE(PageTable* pt, unsigned logicAddr, unsigned physicAdd
     }
 
     int pageIndex = pt->lastPageIndex;
-    for (int c = 0; c <= pt->tableSize; c++, pageIndex++) {
-        if (pageIndex >= pt->tableSize) {
+    for (int c = 0; c <= pt->numberPages; c++, pageIndex++) {
+        if (pageIndex >= pt->numberPages) {
             pageIndex = 0;
         }
 
@@ -89,15 +96,11 @@ void writePageSECONDCHANCE(PageTable* pt, unsigned logicAddr, unsigned physicAdd
         }
     }
 
-    pt->lastPageIndex = pageIndex + 1;
+    pt->lastPageIndex = pageIndex + 1; */
 }
 
 int isAlgorithmValid(char algorithm[]) {
     return strcmp(algorithm, LRU) == 0 || strcmp(algorithm, SECONDCHANCE) == 0 || strcmp(algorithm, FIFO) == 0 || strcmp(algorithm, CUSTOM) == 0;
-}
-
-int isFirstIteration(PageTable* pt) {
-    return pt->isFirstIteration;
 }
 
 Statistics* newStatistics() {
@@ -107,32 +110,42 @@ Statistics* newStatistics() {
     return stats;
 } 
 
-PageTable* newPageTable(unsigned memSize, unsigned pageSize) {
-    PageTable* pt = malloc(sizeof(PageTable) + sizeof(MemPage) * (memSize/pageSize));
-    pt->tableSize = memSize/pageSize, pt->pageSize = pageSize, pt->lastPageIndex = 0, 
-    pt->isFirstIteration = 1;
+PhysMem* newPhysicalMemory(unsigned memSize, unsigned pageSize) {
+    unsigned numberFrames = memSize/pageSize;
+    PhysMem* physMem = malloc(sizeof(PhysMem) + sizeof(Frame) * numberFrames);
+    physMem->numberFrames = numberFrames, physMem->lastFrameAddress = 0;
+    for(int i=0; i<numberFrames; i++) {
+        physMem->frames[i].isAllocated = FREE;
+        physMem->frames[i].pageAddress = -1;
+    }
+    return physMem;
+}
+
+PageTable* newPageTable(unsigned offsetSize) {
+    unsigned numberPages = pow(2, ADDRESS_BITS_SIZE-offsetSize);
+    PageTable* pt = malloc(sizeof(PageTable) + sizeof(Page) * numberPages);
+    pt->numberPages = numberPages;
+    for(int pageAddress=0; pageAddress<numberPages; pageAddress++) {
+        pt->pages[pageAddress].physicAddr = -1;
+        pt->pages[pageAddress].validationBit = INVALID;
+        pt->pages[pageAddress].dirtyPage = 0;
+        pt->pages[pageAddress].referenceBit = 0;
+        pt->pages[pageAddress].timeLastAccess = 0;
+    }
     return pt;
 }
 
-MemPage* getPage(PageTable* pt, unsigned pageAddr) {
-    for (int i = 0; i < pt->tableSize; i++) {
-        if (pt->pages[i].logicAddr == pageAddr) {
-            return &pt->pages[i];
-        }
-    }
-    return NULL;
-}
-
-void updatePageByAlgorithm(PageTable* pt, MemPage* page, unsigned logicAddr, 
-                           unsigned addr,  Statistics* stats) {
-    unsigned isPageFault = (page == NULL);
+void updatePageByAlgorithm(PageTable* pt, unsigned pageAddress, PhysMem* physMem,  
+                           Statistics* stats) {
+    unsigned isPageFault = (pt->pages[pageAddress].validationBit == INVALID);
     if(strcmp(stats->algorithm, FIFO) == 0) {
         if(isPageFault) {
             stats->pageFaults++;
             if(isDebugMode) printf(":::Page Fault (%d)\n", stats->pageFaults);
-            writePageFIFO(pt, logicAddr, addr, stats);
+            writePageFIFO(pt, pageAddress, physMem, stats);
         }
-    } else if(strcmp(stats->algorithm, LRU) == 0) {
+    } 
+    /* else if(strcmp(stats->algorithm, LRU) == 0) {
         if(isPageFault) {
             stats->pageFaults++;
             if(isDebugMode) printf(":::Page Fault (%d)\n", stats->pageFaults);
@@ -150,21 +163,39 @@ void updatePageByAlgorithm(PageTable* pt, MemPage* page, unsigned logicAddr,
         }
     } else if (strcmp(stats->algorithm, CUSTOM) == 0) {
         writePageLRU(pt, logicAddr, addr, stats); //TODO: create Custom algorithm
-    }
+    } */
 }
 
-void printTable(PageTable* pt, char algorithm[]) {
-    for (int i = 0; i < pt->tableSize; i++) {
-        printf("Page %x - Address %x - Dirty Page %d", pt->pages[i].logicAddr, 
-               pt->pages[i].physicAddr, pt->pages[i].dirtyPage);
-        if (strcmp(algorithm, LRU) == 0) {
-            printf(" - Time of Last Access %d\n", pt->pages[i].timeLastAccess);
-            continue;
+void printTable(PageTable* pt, char algorithm[], int printOnlyValids) {
+    for (int pageAddress = 0; pageAddress < pt->numberPages; pageAddress++) {
+        if(printOnlyValids) {
+            if(pt->pages[pageAddress].validationBit == VALID) {
+                printf("Page %x - Address %x - Validation Bit %c - Dirty Page %d", pageAddress, 
+                    pt->pages[pageAddress].physicAddr, pt->pages[pageAddress].validationBit, 
+                    pt->pages[pageAddress].dirtyPage);
+                if (strcmp(algorithm, LRU) == 0) {
+                    printf(" - Time of Last Access %d\n", pt->pages[pageAddress].timeLastAccess);
+                    continue;
+                }
+                if (strcmp(algorithm, SECONDCHANCE) == 0) {
+                    printf(" - Reference Bit %d\n", pt->pages[pageAddress].referenceBit);
+                    continue;
+                }
+                printf("\n");
+            }
+        } else {
+            printf("Page %x - Address %x - Validation Bit %c - Dirty Page %d", pageAddress, 
+                    pt->pages[pageAddress].physicAddr, pt->pages[pageAddress].validationBit, 
+                    pt->pages[pageAddress].dirtyPage);
+                if (strcmp(algorithm, LRU) == 0) {
+                    printf(" - Time of Last Access %d\n", pt->pages[pageAddress].timeLastAccess);
+                    continue;
+                }
+                if (strcmp(algorithm, SECONDCHANCE) == 0) {
+                    printf(" - Reference Bit %d\n", pt->pages[pageAddress].referenceBit);
+                    continue;
+                }
+                printf("\n");
         }
-        if (strcmp(algorithm, SECONDCHANCE) == 0) {
-            printf(" - Reference Bit %d\n", pt->pages[i].referenceBit);
-            continue;
-        }
-        printf("\n");
     }
 }

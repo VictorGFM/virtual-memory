@@ -6,11 +6,13 @@ CC = gcc
 
 CFLAGS = -g -Wall -O3
 
+LIBS += -lm
+
 all: $(ALL)
 
 $(ALL): $(OBJ)
-	$(CC) $(CFLAGS) -c $(SRC)
-	$(CC) $(CFLAGS) $(OBJ) -o $@ 
+	$(CC) $(CFLAGS) -c $(SRC) 
+	$(CC) $(CFLAGS) $(OBJ) -o $@ $(LIBS) 
 
 clean:
 	rm $(ALL) *.o
