@@ -5,37 +5,48 @@
 
 int isDebugMode = 0;
 
-int validateReadWrite(char rw) {
-    return (rw != READ && rw != WRITE);
-}
+int validateArgs(int argsCount, char* args[], Statistics* stats, FILE** logFile, 
+                 int* isDebugMode);
+int getOffsetSize(unsigned pageSize);
+void accessAddresses(FILE* logFile, unsigned offsetSize, PageTable* pt, PhysMem* physMem,
+                     Statistics* stats);
+int validateReadWrite(char rw);
+void printResults(PageTable* pt, Statistics* stats, clock_t startTime, clock_t endTime, 
+                  char file[]);
 
-int getOffsetSize(unsigned pageSize) {
-    int s = 0, tmpPageSize = pageSize;
-    while (tmpPageSize > 1) {
-        tmpPageSize = tmpPageSize>>1;
-        s++;
+int main(int argsCount, char* args[]) {
+    FILE* logFile = NULL;
+    Statistics* stats = newStatistics();
+
+    if (validateArgs(argsCount, args, stats, &logFile, &isDebugMode) != 0) {
+        printf("Error while validating arguments. Invalid Argument.\n");
+        return 0;
     }
-    return s;
-}
 
-void printResults(PageTable* pt, Statistics* stats, clock_t startTime, clock_t endTime, char file[]) {
-    printf("\nTabela final:\n");
+    if(isDebugMode) printf(":::DEBUG MODE:::\n");
+
+    unsigned offsetSize = getOffsetSize(stats->pageSize*K);
+    PhysMem* physMem = newPhysicalMemory(stats->memSize, stats->pageSize);
+    PageTable* pt = newPageTable(offsetSize);
+    
+    if(isDebugMode) {
+        printf("Offset Size (s): %d\n", offsetSize);
+    }
+
+    printf("Tabela inicial:\n");
     printTable(pt, stats->algorithm, 1);
-    
-    printf("\nConfiguracao utilizada:\n");
-    printf("Tecnica de reposicao: %s\n", stats->algorithm);
-    printf("Arquivo de entrada: %s\n", file);
-    printf("Tamanho das páginas: %d KB\n", stats->pageSize);
-    printf("Tamanho da memoria: %d KB (%d quadros)\n\n", stats->memSize, stats->memSize/stats->pageSize);
-    
-    printf("Numero de acessos a memoria: %d\n", stats->accessCount);
-    printf("Numero de page faults: %d\n", stats->pageFaults);
-    printf("Paginas sujas escritas no disco: %d\n\n", stats->dirtyPagesWrittenDisk);
 
-    printf("Número de páginas lidas: %d\n", stats->readPages);
-    printf("Número de páginas escritas: %d\n\n", stats->writtenPages);
+    clock_t startTime = clock();
     
-    printf("Tempo de execução: %fs\n", (double)(endTime - startTime) / CLOCKS_PER_SEC);
+    accessAddresses(logFile, offsetSize, pt, physMem, stats);
+    
+    clock_t endTime = clock();
+
+    printResults(pt, stats, startTime, endTime, args[2]);
+
+    free(physMem);
+    free(pt);
+    return 0;
 }
 
 int validateArgs(int argsCount, char* args[], Statistics* stats, FILE** logFile, 
@@ -81,6 +92,15 @@ int validateArgs(int argsCount, char* args[], Statistics* stats, FILE** logFile,
     return 0;
 }
 
+int getOffsetSize(unsigned pageSize) {
+    int s = 0, tmpPageSize = pageSize;
+    while (tmpPageSize > 1) {
+        tmpPageSize = tmpPageSize>>1;
+        s++;
+    }
+    return s;
+}
+
 void accessAddresses(FILE* logFile, unsigned offsetSize, PageTable* pt, PhysMem* physMem,
                      Statistics* stats) {
     unsigned addr;
@@ -118,35 +138,27 @@ void accessAddresses(FILE* logFile, unsigned offsetSize, PageTable* pt, PhysMem*
     fclose(logFile);
 }
 
-int main(int argsCount, char* args[]) {
-    FILE* logFile = NULL;
-    Statistics* stats = newStatistics();
+int validateReadWrite(char rw) {
+    return (rw != READ && rw != WRITE);
+}
 
-    if (validateArgs(argsCount, args, stats, &logFile, &isDebugMode) != 0) {
-        printf("Error while validating arguments. Invalid Argument.\n");
-        return 0;
-    }
-
-    if(isDebugMode) printf(":::DEBUG MODE:::\n");
-
-    unsigned offsetSize = getOffsetSize(stats->pageSize*K);
-    PhysMem* physMem = newPhysicalMemory(stats->memSize, stats->pageSize);
-    PageTable* pt = newPageTable(offsetSize);
-    
-    if(isDebugMode) {
-        printf("Offset Size (s): %d\n", offsetSize);
-    }
-
-    printf("Tabela inicial:\n");
+void printResults(PageTable* pt, Statistics* stats, clock_t startTime, clock_t endTime, 
+                  char file[]) {
+    printf("\nTabela final:\n");
     printTable(pt, stats->algorithm, 1);
-
-    clock_t startTime = clock();
     
-    accessAddresses(logFile, offsetSize, pt, physMem, stats);
+    printf("\nConfiguração utilizada:\n");
+    printf("Técnica de reposição: %s\n", stats->algorithm);
+    printf("Arquivo de entrada: %s\n", file);
+    printf("Tamanho das páginas: %d KB\n", stats->pageSize);
+    printf("Tamanho da memória: %d KB (%d quadros)\n\n", stats->memSize, stats->memSize/stats->pageSize);
     
-    printResults(pt, stats, startTime, clock(), args[2]);
+    printf("Número de acessos a memória: %d\n", stats->accessCount);
+    printf("Número de page faults: %d\n", stats->pageFaults);
+    printf("Páginas sujas escritas no disco: %d\n\n", stats->dirtyPagesWrittenDisk);
 
-    free(physMem);
-    free(pt);
-    return 0;
+    printf("Número de páginas lidas: %d\n", stats->readPages);
+    printf("Número de páginas escritas: %d\n\n", stats->writtenPages);
+    
+    printf("Tempo de execução: %fs\n", (double)(endTime - startTime) / CLOCKS_PER_SEC);
 }

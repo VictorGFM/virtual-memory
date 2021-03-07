@@ -50,12 +50,12 @@ void writePageLRU(PageTable* pt, unsigned logicAddr, unsigned physicAddr, Statis
 void writePageSECONDCHANCE(PageTable* pt, unsigned logicAddr, unsigned physicAddr, Statistics* stats);
 void writePageCUSTOM(PageTable* pt, unsigned logicAddr, unsigned physicAddr);
 
-extern int isAlgorithmValid(char algorithm[]);
 extern Statistics* newStatistics();
 extern PhysMem* newPhysicalMemory(unsigned memSize, unsigned pageSize);
 extern PageTable* newPageTable(unsigned offsetSize);
+extern int isAlgorithmValid(char algorithm[]);
+extern void printTable(PageTable* pt, char algorithm[], int printOnlyValids);
 extern void updatePageByAlgorithm(PageTable* pt, unsigned pageAddress, PhysMem* physMem, 
                                   Statistics* stats);
-extern void printTable(PageTable* pt, char algorithm[], int printOnlyValids);
 
 #endif
