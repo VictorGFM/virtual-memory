@@ -54,7 +54,7 @@ extern Statistics* newStatistics();
 extern PhysMem* newPhysicalMemory(unsigned memSize, unsigned pageSize);
 extern PageTable* newPageTable(unsigned offsetSize);
 extern int isAlgorithmValid(char algorithm[]);
-extern void printTable(PageTable* pt, char algorithm[], int printOnlyValids);
+extern void printTable(PhysMem* physMem, PageTable* pt, char algorithm[]);
 extern void updatePageByAlgorithm(PageTable* pt, unsigned pageAddress, PhysMem* physMem, 
                                   Statistics* stats);
 

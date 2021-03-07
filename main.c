@@ -14,7 +14,7 @@ void accessAddresses(FILE* logFile, unsigned offsetSize, PageTable* pageTable, P
 
 int validateReadWrite(char rw);
 
-void printResults(PageTable* pageTable, Statistics* stats, clock_t startTime, clock_t endTime,
+void printResults(PhysMem* physMem, PageTable* pageTable, Statistics* stats, clock_t startTime, clock_t endTime,
                   char file[]);
 
 int main(int argsCount, char* args[]) {
@@ -36,8 +36,8 @@ int main(int argsCount, char* args[]) {
         printf("Offset Size (s): %d\n", offsetSize);
     }
 
-    printf("Tabela inicial:\n");
-    printTable(pageTable, stats->algorithm, 1);
+    printf("Tabela inicial:\n\n");
+    printTable(physMem, pageTable, stats->algorithm);
 
     clock_t startTime = clock();
     
@@ -45,7 +45,7 @@ int main(int argsCount, char* args[]) {
     
     clock_t endTime = clock();
 
-    printResults(pageTable, stats, startTime, endTime, args[2]);
+    printResults(physMem, pageTable, stats, startTime, endTime, args[2]);
 
     free(physMem);
     free(pageTable);
@@ -110,8 +110,7 @@ void accessAddresses(FILE* logFile, unsigned offsetSize, PageTable* pageTable, P
 
     while (fscanf(logFile, "%x %c", &addr, &rw) != EOF) {
         if(validateReadWrite(rw) != 0) {
-            printf("Error while reading file. Parameter W/R not provided.\n");
-            exit(0); // continue?
+            continue;
         }
 
         stats->accessCount++;
@@ -134,7 +133,7 @@ void accessAddresses(FILE* logFile, unsigned offsetSize, PageTable* pageTable, P
 
         if(isDebugMode) {
             printf(":::Page Table:\n");
-            printTable(pageTable, stats->algorithm, 1);
+            printTable(physMem, pageTable, stats->algorithm);
         }
     }
 
@@ -145,10 +144,10 @@ int validateReadWrite(char rw) {
     return (rw != READ && rw != WRITE);
 }
 
-void printResults(PageTable* pageTable, Statistics* stats, clock_t startTime, clock_t endTime,
-                  char file[]) {
-    printf("\nTabela final:\n");
-    printTable(pageTable, stats->algorithm, 1);
+void printResults(PhysMem* physMem, PageTable* pageTable, Statistics* stats, clock_t startTime, 
+                  clock_t endTime, char file[]) {
+    printf("\nTabela final:\n\n");
+    printTable(physMem, pageTable, stats->algorithm);
     
     printf("\nConfiguração utilizada:\n");
     printf("Técnica de reposição: %s\n", stats->algorithm);

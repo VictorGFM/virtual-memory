@@ -41,25 +41,43 @@ int isAlgorithmValid(char algorithm[]) {
     return strcmp(algorithm, LRU) == 0 || strcmp(algorithm, SECONDCHANCE) == 0 || strcmp(algorithm, FIFO) == 0 || strcmp(algorithm, CUSTOM) == 0;
 }
 
-void printTable(PageTable* pt, char algorithm[], int printOnlyValidPages) {
-    for (int pageAddress = 0; pageAddress < pt->numberPages; pageAddress++) {
-        if((printOnlyValidPages && pt->pages[pageAddress].validationBit == VALID)  // acho q n precisa imprimir pag invalida, só da memoria
-           || !printOnlyValidPages) {
-            printf("Page %x - Address %x - Validation Bit %c - Dirty Page %d", pageAddress, 
-                pt->pages[pageAddress].physicAddr, pt->pages[pageAddress].validationBit, 
-                pt->pages[pageAddress].dirtyPage);
-            if (strcmp(algorithm, LRU) == 0) {
-                printf(" - Time of Last Access %d\n", pt->pages[pageAddress].timeLastAccess);
-                continue;
+void printTable(PhysMem* physMem, PageTable* pt, char algorithm[]) {
+    if (strcmp(algorithm, FIFO) == 0) {
+        printf("%-20s%-20s%-22s%-12s\n", "Endereço Físico", "| Endereço Lógico", 
+            "| Bit de Validação", "| Bit Sujo"); 
+    } else if (strcmp(algorithm, LRU) == 0) {
+        printf("%-20s%-20s%-22s%-12s%-20s\n", "Endereço Físico", "| Endereço Lógico", 
+            "| Bit de Validação", "| Bit Sujo", "| Tempo do último acesso"); 
+    } else if (strcmp(algorithm, SECONDCHANCE) == 0) {
+        printf("%-20s%-20s%-22s%-12s%-20s\n", "Endereço Físico", "| Endereço Lógico", 
+            "| Bit de Validação", "| Bit Sujo", "| Bit de Referência"); 
+    }
+    for(int frameAddress = 0; frameAddress< physMem->numberFrames; frameAddress++) {
+        Frame frame = physMem->frames[frameAddress];
+        if(frame.isAllocated) {
+            Page page = pt->pages[frame.pageAddress];
+            if (strcmp(algorithm, FIFO) == 0) {
+                printf("%-18x| %-16x| %-18c| %-10d\n", frameAddress, frame.pageAddress, 
+                        page.validationBit, page.dirtyPage); 
+            } else if (strcmp(algorithm, LRU) == 0) {
+                printf("%-18x| %-16x| %-18c| %-10d| %-20d\n", frameAddress, frame.pageAddress, 
+                        page.validationBit, page.dirtyPage, page.timeLastAccess);
+            } else if (strcmp(algorithm, SECONDCHANCE) == 0) {
+                printf("%-18x| %-16x| %-18c| %-10d| %-20d\n", frameAddress, frame.pageAddress, 
+                        page.validationBit, page.dirtyPage, page.referenceBit);
             }
-            if (strcmp(algorithm, SECONDCHANCE) == 0) {
-                printf(" - Reference Bit %d\n", pt->pages[pageAddress].referenceBit);
-                continue;
+        } else {
+            if (strcmp(algorithm, FIFO) == 0) {
+                printf("%-18x| %-16s| %-18s| %-10s\n", frameAddress, "-", "-", "-"); 
+            } else if (strcmp(algorithm, LRU) == 0) {
+                printf("%-18x| %-16s| %-18s| %-10s| %-20s\n", frameAddress, "-", "-", "-", "-");
+            } else if (strcmp(algorithm, SECONDCHANCE) == 0) {
+                printf("%-18x| %-16s| %-18s| %-10s| %-20s\n", frameAddress, "-", "-", "-", "-"); 
             }
-            printf("\n");
-        } 
+        }
     }
 }
+
 
 void writePageFIFO(PageTable* pt, PhysMem* physMem, unsigned pageAddress, Statistics* stats) {
     if (physMem->lastFrameAddress == physMem->numberFrames) {
