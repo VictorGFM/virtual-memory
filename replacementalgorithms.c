@@ -78,26 +78,28 @@ void printTable(PhysMem* physMem, PageTable* pt, char algorithm[]) {
     }
 }
 
-
 void writePageFIFO(PageTable* pt, PhysMem* physMem, unsigned pageAddress, Statistics* stats) {
     if (physMem->lastFrameAddress == physMem->numberFrames) {
         physMem->lastFrameAddress = 0;
     }
-    
-    if(physMem->frames[physMem->lastFrameAddress].isAllocated == FREE) { // check address?
+
+    if(physMem->frames[physMem->lastFrameAddress].isAllocated == FREE) {
         physMem->frames[physMem->lastFrameAddress].isAllocated = ALLOCATED;
         physMem->frames[physMem->lastFrameAddress].pageAddress = pageAddress;
     } else {
         unsigned deallocatedPageAddress = physMem->frames[physMem->lastFrameAddress].pageAddress;
+        if(isDebugMode) printf(":::Deallocated Page Address: %x\n", deallocatedPageAddress);
         pt->pages[deallocatedPageAddress].validationBit = INVALID;
+
         if(pt->pages[deallocatedPageAddress].dirtyPage) {
             stats->dirtyPagesWrittenDisk++;
             if(isDebugMode) {
                 printf(":::Dirty Page Written On Disk (%d): %x\n", 
                     stats->dirtyPagesWrittenDisk, deallocatedPageAddress);
             }
+            pt->pages[deallocatedPageAddress].dirtyPage = 0;
         }
-        pt->pages[deallocatedPageAddress].dirtyPage = 0;
+        
         physMem->frames[physMem->lastFrameAddress].pageAddress = pageAddress;
     }
 
@@ -109,6 +111,7 @@ void writePageFIFO(PageTable* pt, PhysMem* physMem, unsigned pageAddress, Statis
 
 void writePageLRU(PageTable* pt, PhysMem* physMem, unsigned pageAddress, Statistics* stats) {
     if (physMem->lastFrameAddress < physMem->numberFrames) {
+        physMem->frames[physMem->lastFrameAddress].isAllocated = ALLOCATED;
         physMem->frames[physMem->lastFrameAddress].pageAddress = pageAddress;
         pt->pages[pageAddress].physicAddr = physMem->lastFrameAddress;
         pt->pages[pageAddress].validationBit = VALID;
@@ -127,16 +130,18 @@ void writePageLRU(PageTable* pt, PhysMem* physMem, unsigned pageAddress, Statist
     }
 
     unsigned deallocatedPageAddress = physMem->frames[leastRecentlyUsedIndex].pageAddress;
+    if(isDebugMode) printf(":::Deallocated Page Address: %x\n", deallocatedPageAddress);
+    pt->pages[deallocatedPageAddress].validationBit = INVALID;
+
     if(pt->pages[deallocatedPageAddress].dirtyPage) {
         stats->dirtyPagesWrittenDisk++;
         if(isDebugMode) {
             printf(":::Dirty Page Written On Disk (%d): %x\n", 
                 stats->dirtyPagesWrittenDisk, deallocatedPageAddress);
         }
+        pt->pages[deallocatedPageAddress].dirtyPage = 0;
     }
-    pt->pages[deallocatedPageAddress].dirtyPage = 0;
 
-    pt->pages[deallocatedPageAddress].validationBit = INVALID;
     physMem->frames[leastRecentlyUsedIndex].pageAddress = pageAddress;
     pt->pages[pageAddress].physicAddr = leastRecentlyUsedIndex;
     pt->pages[pageAddress].validationBit = VALID;
@@ -148,48 +153,50 @@ void writePageSECONDCHANCE(PageTable* pt, PhysMem* physMem, unsigned pageAddress
         physMem->lastFrameAddress = 0;
     }
 
-    if(physMem->frames[physMem->lastFrameAddress].pageAddress == -1) { // check address?
-    // if(physMem->frames[physMem->lastFrameAddress].isAllocated == FREE) { // check address?
-        // physMem->frames[physMem->lastFrameAddress].isAllocated = ALLOCATED;
+    if(physMem->frames[physMem->lastFrameAddress].isAllocated == FREE) {
+        physMem->frames[physMem->lastFrameAddress].isAllocated = ALLOCATED;
         physMem->frames[physMem->lastFrameAddress].pageAddress = pageAddress;
+        pt->pages[pageAddress].physicAddr = physMem->lastFrameAddress;
         pt->pages[pageAddress].validationBit = VALID;
+        pt->pages[pageAddress].referenceBit = 0;
         physMem->lastFrameAddress++;
-        return;
+    } else {
+        unsigned frameIndex = physMem->lastFrameAddress;
+        unsigned deallocatedPageAddress = 0;
+        for (int i = 0; i <= physMem->numberFrames; i++, frameIndex++) {
+            if (frameIndex >= physMem->numberFrames) {
+                frameIndex = 0;
+            }
+
+            deallocatedPageAddress = physMem->frames[frameIndex].pageAddress;
+            if (pt->pages[deallocatedPageAddress].referenceBit == 1) {
+                pt->pages[deallocatedPageAddress].referenceBit = 0;
+                continue;
+            }
+
+            if (pt->pages[deallocatedPageAddress].referenceBit == 0) {
+                if(isDebugMode) printf(":::Deallocated Page Address: %x\n", deallocatedPageAddress);
+                pt->pages[deallocatedPageAddress].validationBit = INVALID;
+
+                if(pt->pages[deallocatedPageAddress].dirtyPage) {
+                    stats->dirtyPagesWrittenDisk++;
+                    if(isDebugMode) {
+                        printf(":::Dirty Page Written On Disk (%d): %x\n", 
+                            stats->dirtyPagesWrittenDisk, deallocatedPageAddress);
+                    }
+                    pt->pages[deallocatedPageAddress].dirtyPage = 0;
+                }
+
+                break;
+            }
+        }
+
+        physMem->frames[frameIndex].pageAddress = pageAddress;
+        pt->pages[pageAddress].physicAddr = frameIndex;
+        pt->pages[pageAddress].validationBit = VALID;
+
+        physMem->lastFrameAddress = frameIndex + 1;
     }
-
-    unsigned pageIndex = physMem->lastFrameAddress;
-    unsigned deallocatedPageAddress = 0;
-    for (int i = 0; i <= physMem->numberFrames; i++, pageIndex++) {
-        if (pageIndex >= physMem->numberFrames) {
-            pageIndex = 0;
-        }
-
-        deallocatedPageAddress = physMem->frames[pageIndex].pageAddress;
-        if (pt->pages[deallocatedPageAddress].referenceBit == 0) {
-            pt->pages[deallocatedPageAddress].referenceBit = 1;
-            continue;
-        }
-
-        if (pt->pages[deallocatedPageAddress].referenceBit == 1) {
-            pt->pages[deallocatedPageAddress].referenceBit = 0;
-            pt->pages[deallocatedPageAddress].validationBit = INVALID;
-            break;
-        }
-    }
-
-    if(pt->pages[deallocatedPageAddress].dirtyPage) {
-        stats->dirtyPagesWrittenDisk++;
-        if(isDebugMode) {
-            printf(":::Dirty Page Written On Disk (%d): %x\n", 
-                stats->dirtyPagesWrittenDisk, deallocatedPageAddress);
-        }
-    }
-    pt->pages[deallocatedPageAddress].dirtyPage = 0;
-
-    pt->pages[pageAddress].physicAddr = pageIndex;
-    pt->pages[pageAddress].validationBit = VALID;
-    physMem->frames[pageIndex].pageAddress = pageAddress;
-    physMem->lastFrameAddress = pageIndex + 1;
 }
 
 void updatePageByAlgorithm(PageTable* pageTable, unsigned pageAddress, PhysMem* physMem,
@@ -222,7 +229,7 @@ void updatePageByAlgorithm(PageTable* pageTable, unsigned pageAddress, PhysMem* 
             }
             writePageSECONDCHANCE(pageTable, physMem, pageAddress, stats);
         } else {
-            pageTable->pages[pageAddress].referenceBit = 0;
+            pageTable->pages[pageAddress].referenceBit = 1;
         }
     } /* else if (strcmp(stats->algorithm, CUSTOM) == 0) {
         writePageLRU(pageTable, logicAddr, addr, stats); //TODO: create Custom algorithm

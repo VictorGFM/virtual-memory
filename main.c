@@ -36,7 +36,7 @@ int main(int argsCount, char* args[]) {
         printf("Offset Size (s): %d\n", offsetSize);
     }
 
-    printf("Tabela inicial:\n\n");
+    printf("\nTabela inicial:\n\n");
     printTable(physMem, pageTable, stats->algorithm);
 
     clock_t startTime = clock();
@@ -77,7 +77,7 @@ int validateArgs(int argsCount, char* args[], Statistics* stats, FILE** logFile)
     }
 
     stats->memSize = atoi(args[4]);
-    /* if (stats->memSize < 128) {
+    /* if (stats->memSize < 128) { TODO: Descomentar bloco
         printf("Invalid memory size. [128, 16384]\n");
         return 1;
     } */
