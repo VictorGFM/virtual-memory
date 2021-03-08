@@ -20,6 +20,7 @@ void printResults(PhysMem* physMem, PageTable* pageTable, Statistics* stats, clo
 int main(int argsCount, char* args[]) {
     FILE* logFile = NULL;
     Statistics* stats = newStatistics();
+    srand((unsigned) time(NULL));
 
     if (validateArgs(argsCount, args, stats, &logFile) != 0) {
         printf("Error while validating arguments. Invalid Argument.\n");
@@ -71,16 +72,16 @@ int validateArgs(int argsCount, char* args[], Statistics* stats, FILE** logFile)
     }
 
     stats->pageSize = atoi(args[3]);
-    if (stats->pageSize < 2) {
-        printf("Invalid page size. [2, 64]\n");
+    if (stats->pageSize < 1) {
+        printf("Invalid page size.\n");
         return 1;
     }
 
     stats->memSize = atoi(args[4]);
-    /* if (stats->memSize < 128) { TODO: Descomentar bloco
-        printf("Invalid memory size. [128, 16384]\n");
+    if (stats->memSize < 1) { 
+        printf("Invalid memory size.\n");
         return 1;
-    } */
+    }
 
     if(args[5] != NULL) {
         if(strcmp(args[5], DEBUG) == 0) {

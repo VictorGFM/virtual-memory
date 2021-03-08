@@ -42,7 +42,7 @@ int isAlgorithmValid(char algorithm[]) {
 }
 
 void printTable(PhysMem* physMem, PageTable* pt, char algorithm[]) {
-    if (strcmp(algorithm, FIFO) == 0) {
+    if (strcmp(algorithm, FIFO) == 0 || strcmp(algorithm, CUSTOM) == 0) {
         printf("%-20s%-20s%-22s%-12s\n", "Endereço Físico", "| Endereço Lógico", 
             "| Bit de Validação", "| Bit Sujo"); 
     } else if (strcmp(algorithm, LRU) == 0) {
@@ -56,7 +56,7 @@ void printTable(PhysMem* physMem, PageTable* pt, char algorithm[]) {
         Frame frame = physMem->frames[frameAddress];
         if(frame.isAllocated) {
             Page page = pt->pages[frame.pageAddress];
-            if (strcmp(algorithm, FIFO) == 0) {
+            if (strcmp(algorithm, FIFO) == 0  || strcmp(algorithm, CUSTOM) == 0) {
                 printf("%-18x| %-16x| %-18c| %-10d\n", frameAddress, frame.pageAddress, 
                         page.validationBit, page.dirtyPage); 
             } else if (strcmp(algorithm, LRU) == 0) {
@@ -67,7 +67,7 @@ void printTable(PhysMem* physMem, PageTable* pt, char algorithm[]) {
                         page.validationBit, page.dirtyPage, page.referenceBit);
             }
         } else {
-            if (strcmp(algorithm, FIFO) == 0) {
+            if (strcmp(algorithm, FIFO) == 0  || strcmp(algorithm, CUSTOM) == 0) {
                 printf("%-18x| %-16s| %-18s| %-10s\n", frameAddress, "-", "-", "-"); 
             } else if (strcmp(algorithm, LRU) == 0) {
                 printf("%-18x| %-16s| %-18s| %-10s| %-20s\n", frameAddress, "-", "-", "-", "-");
@@ -201,13 +201,39 @@ void writePageSECONDCHANCE(PageTable* pt, PhysMem* physMem, unsigned pageAddress
 }
 
 void writePageCUSTOM(PageTable* pt, PhysMem* physMem, unsigned pageAddress, Statistics* stats) {
+    if (physMem->lastFrameAddress < physMem->numberFrames) {
+        physMem->frames[physMem->lastFrameAddress].isAllocated = ALLOCATED;
+        physMem->frames[physMem->lastFrameAddress].pageAddress = pageAddress;
+        pt->pages[pageAddress].physicAddr = physMem->lastFrameAddress;
+        pt->pages[pageAddress].validationBit = VALID;
 
+        physMem->lastFrameAddress++;
+    } else {
+        
+        int randomFrameAddress = rand() % physMem->numberFrames;
+
+        unsigned deallocatedPageAddress = physMem->frames[randomFrameAddress].pageAddress;
+        if(isDebugMode) printf(":::Deallocated Page Address: %x\n", deallocatedPageAddress);
+        pt->pages[deallocatedPageAddress].validationBit = INVALID;
+
+        if(pt->pages[deallocatedPageAddress].dirtyPage) {
+            stats->dirtyPagesWrittenDisk++;
+            if(isDebugMode) {
+                printf(":::Dirty Page Written On Disk (%d): %x\n", 
+                    stats->dirtyPagesWrittenDisk, deallocatedPageAddress);
+            }
+            pt->pages[deallocatedPageAddress].dirtyPage = 0;
+        }
+
+        physMem->frames[randomFrameAddress].pageAddress = pageAddress;
+        pt->pages[pageAddress].physicAddr = randomFrameAddress;
+        pt->pages[pageAddress].validationBit = VALID;
+    }
 }
 
 
 void updatePageByAlgorithm(PageTable* pageTable, unsigned pageAddress, PhysMem* physMem,
                            Statistics* stats) {
-
     unsigned isPageFault = (pageTable->pages[pageAddress].validationBit == INVALID);
     if(strcmp(stats->algorithm, FIFO) == 0) {
         if(isPageFault) {
@@ -238,6 +264,12 @@ void updatePageByAlgorithm(PageTable* pageTable, unsigned pageAddress, PhysMem* 
             pageTable->pages[pageAddress].referenceBit = 1;
         }
     } else if (strcmp(stats->algorithm, CUSTOM) == 0) {
-        writePageCUSTOM(pageTable, physMem, pageAddress, stats); //TODO: create Custom algorithm
+        if(isPageFault) {
+            stats->pageFaults++;
+            if(isDebugMode) {
+                printf(":::Page Fault (%d)\n", stats->pageFaults);
+            }
+            writePageCUSTOM(pageTable, physMem, pageAddress, stats);
+        }
     }
 }
