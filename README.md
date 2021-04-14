@@ -1,6 +1,6 @@
 # virtual-memory
 
-Virtual memory simulation in C language, developed in the Operating System discipline at UFMG.
+Virtual memory simulation in C language, developed in the Operating Systems discipline at UFMG.
 
 ## Setup
 
