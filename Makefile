@@ -1,4 +1,4 @@
-ALL = tp2virtual
+ALL = virtual-memory
 SRC = $(wildcard *.c */*.c)
 OBJ = $(patsubst %.c, %.o, $(SRC))
 
@@ -15,5 +15,6 @@ $(ALL): $(OBJ)
 	$(CC) $(CFLAGS) $(OBJ) -o $@ $(LIBS) 
 
 clean:
-	rm $(ALL) *.o
+	rm $(ALL) ./src/*.o
+	rm *.o
 
